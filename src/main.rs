@@ -7,6 +7,12 @@ struct Account {
 }
 
 impl Account {
+    pub fn new_user(&mut self, name: &str, deposit: f64) {
+        let user = User::new(name, deposit);
+        self.users.push(user);
+        self.update();
+    }
+
     pub fn update(&mut self) {
         let mut total = 0f64;
         let mut withdrawl = 0f64;
@@ -101,12 +107,13 @@ impl User {
 fn main() {
     let mut acct = Account{ total: 5000f64, investment: 0f64, users: Vec::new()};
     
+    let user0 = User::new("geno", 52000f64);
     let user1 = User::new("Micah", 1300f64);
     let user2 = User::new("Killian", 1000f64);
     let user3 = User::new("Ashton", 500f64);
     let user4 = User::new("Areli", 300f64);
 
-    let users = vec![user1, user2, user3, user4];
+    let users = vec![user0, user1, user2, user3, user4];
     acct.users = users;
     acct.update();
 
