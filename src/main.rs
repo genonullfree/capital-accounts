@@ -25,10 +25,9 @@ enum Command {
     List,
     /// Update investment value
     Investments(InvestOpt),
-    /*
-    NewUser,
-    RemoveUser,
-    */
+    NewUser(ModifyOpt),
+    Create(ModifyOpt),
+    RemoveUser(RemoveOpt),
 }
 
 #[derive(Parser, Debug)]
@@ -50,6 +49,25 @@ struct InvestOpt {
     value: f64,
 }
 
+#[derive(Parser, Debug)]
+struct RemoveOpt {
+    /// User account to remove
+    #[arg(short, long)]
+    user: String,
+
+    /// Method of value removal
+    #[command(subcommand)]
+    method: Method,
+}
+
+#[derive(Parser, Debug)]
+enum Method {
+    /// Disperse the funds in the account to the other accounts according to their percentages
+    Disperse,
+    /// Withdrawl the funds in the account being removed
+    Withdrawl,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Account {
     users: Vec<User>,
@@ -60,6 +78,7 @@ impl Account {
         // Attempt to deposit first to make sure there isn't already that account
         if self.deposit(name, deposit) {
             // Success, this user already exists
+            println!("User {name} already exists!");
             return;
         }
         // Create new user
@@ -86,12 +105,23 @@ impl Account {
         p
     }
 
-    pub fn investments(&mut self, value: f64) {
+    pub fn investments(&mut self, value: f64) -> bool {
         let mut percentages = self.get_percentages();
         println!("Investments: ${:.02}", value);
+        let mut save_values = self.users.clone();
         for each in &mut self.users {
-            each.value += percentages.remove(0) * value;
+            let p = percentages.remove(0);
+            if (each.value + (p * value)) < 0f64 {
+                println!(
+                    "This investment causes {} to go negative! Aborting!",
+                    each.name
+                );
+                self.users = save_values;
+                return false;
+            }
+            each.value += p * value;
         }
+        true
     }
 
     pub fn deposit(&mut self, name: &str, value: f64) -> bool {
@@ -142,6 +172,22 @@ impl Account {
         println!("---");
     }
 
+    pub fn rm_user(&mut self, name: &str) -> Option<User> {
+        let mut user_index: Option<usize> = None;
+        for (n, each) in self.users.iter().enumerate() {
+            if each.name == name {
+                user_index = Some(n);
+                break;
+            }
+        }
+        if let Some(n) = user_index {
+            let user = self.users.remove(n);
+            Some(user)
+        } else {
+            None
+        }
+    }
+
     pub fn save(&self, filename: &str) -> Result<()> {
         let output = serde_json::to_string(&self)?;
         let mut file = File::create(filename)?;
@@ -160,7 +206,7 @@ impl Account {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct User {
     name: String,
     value: f64,
@@ -215,7 +261,39 @@ fn main() -> Result<()> {
             acct.display();
             acct.save(&opt.file)?;
         }
-        _ => todo!("unimplemented"),
+        Command::NewUser(arg) => {
+            let mut acct = Account::load(&opt.file)?;
+            acct.new_user(&arg.user, arg.value);
+            acct.display();
+            acct.save(&opt.file)?;
+        }
+        Command::Create(arg) => {
+            let mut acct = Account { users: Vec::new() };
+            acct.new_user(&arg.user, arg.value);
+            acct.display();
+            acct.save(&opt.file)?;
+        }
+        Command::RemoveUser(arg) => {
+            let mut acct = Account::load(&opt.file)?;
+            let rm_user = acct.rm_user(&arg.user);
+            let Some(user) = rm_user else {
+                return Ok(());
+            };
+            acct.display();
+            match arg.method {
+                Method::Disperse => {
+                    acct.investments(user.value);
+                }
+                Method::Withdrawl => {
+                    println!(
+                        "User {} removed and ${:.02} value withdrawn",
+                        user.name, user.value
+                    );
+                }
+            };
+            acct.display();
+            acct.save(&opt.file)?;
+        }
     }
     Ok(())
 }
