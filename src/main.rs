@@ -30,7 +30,7 @@ impl Account {
 
     pub fn investments(&mut self, value: f64) {
         let mut percentages = self.get_percentages();
-
+        println!("Investments: ${:.02}", value);
         for each in &mut self.users {
             each.value += percentages.remove(0) * value;
         }
@@ -41,7 +41,7 @@ impl Account {
             if each.name == name {
                 each.deposit(value);
                 println!("Modified Account: {name}");
-                println!("This deposit: {:.02}", value);
+                println!("This deposit: ${:.02}", value);
                 return;
             }
         }
@@ -56,7 +56,7 @@ impl Account {
                     return;
                 }
                 println!("Modified Account: {name}");
-                println!("This withdrawl: {:.02}", value);
+                println!("This withdrawl: ${:.02}", value);
                 return;
             }
         }
@@ -69,12 +69,15 @@ impl Account {
 
         println!("---");
         println!("Account Totals:");
-        println!("  Total Value: {total}");
+        println!("  Total Value: ${total:.02}");
         println!();
         for (n, each) in self.users.iter().enumerate() {
             println!("Name: {}", each.name);
-            println!("  Percent: {}", percentages.get(n).unwrap_or(&0f64));
-            println!("  Value: {}", each.value);
+            println!(
+                "  Percent: {:.02}%",
+                percentages.get(n).unwrap_or(&0f64) * 100f64
+            );
+            println!("  Value: ${:.02}", each.value);
         }
         println!("---");
     }
