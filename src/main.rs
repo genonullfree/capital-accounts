@@ -1,7 +1,54 @@
 use anyhow::Result;
+use clap::Parser;
 use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::prelude::*;
 
-const TEST_LOAD: &str = r#"{"users":[{"name":"geno","value":58606.17059891107},{"name":"Micah","value":465.1542649727769},{"name":"Killian","value":1127.0417422867513},{"name":"Ashton","value":563.5208711433756},{"name":"Areli","value":1338.1125226860254}]}"#;
+#[derive(Parser, Debug)]
+struct Args {
+    /// Command to execute
+    #[command(subcommand)]
+    cmd: Command,
+
+    /// Filename to use
+    #[arg(short, long, default_value = "capital.act")]
+    file: String,
+}
+
+#[derive(Parser, Debug)]
+enum Command {
+    /// Deposit value to an account
+    Deposit(ModifyOpt),
+    /// Withdrawl value from an account
+    Withdrawl(ModifyOpt),
+    /// List all accounts and their values
+    List,
+    /// Update investment value
+    Investments(InvestOpt),
+    /*
+    NewUser,
+    RemoveUser,
+    */
+}
+
+#[derive(Parser, Debug)]
+struct ModifyOpt {
+    /// User account to modify
+    #[arg(short, long)]
+    user: String,
+
+    /// Value of modification
+    #[arg(short, long)]
+    value: f64,
+}
+
+#[derive(Parser, Debug)]
+struct InvestOpt {
+    /// Value of investments gain/loss
+    #[clap(allow_negative_numbers = true)]
+    #[arg(short, long)]
+    value: f64,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Account {
@@ -95,14 +142,20 @@ impl Account {
         println!("---");
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self, filename: &str) -> Result<()> {
         let output = serde_json::to_string(&self)?;
-        println!("Saved: {output}");
+        let mut file = File::create(filename)?;
+        file.write_all(output.as_bytes())?;
+        println!("Saved: {filename}");
         Ok(())
     }
 
-    pub fn load() -> Result<Self> {
-        let acct: Account = serde_json::from_str(TEST_LOAD)?;
+    pub fn load(filename: &str) -> Result<Self> {
+        let mut file = File::open(filename)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        let acct: Account = serde_json::from_str(&contents)?;
+        println!("Loaded: {filename}");
         Ok(acct)
     }
 }
@@ -136,35 +189,33 @@ impl User {
 }
 
 fn main() -> Result<()> {
-    //let mut acct = Account { users: Vec::new() };
-    let mut acct = Account::load()?;
+    let opt = Args::parse();
 
-    acct.new_user("geno", 52000f64);
-    acct.display();
-    acct.new_user("Micah", 1300f64);
-    acct.display();
-    acct.new_user("Killian", 1000f64);
-    acct.display();
-    acct.new_user("Ashton", 500f64);
-    acct.display();
-    acct.new_user("Areli", 300f64);
-    acct.display();
-
-    /*
-    let users = vec![user0, user1, user2, user3, user4];
-    acct.users = users;
-    */
-
-    acct.investments(10000.00);
-    acct.display();
-    acct.investments(-3000.00);
-    acct.display();
-    acct.deposit("Areli", 1000.00);
-    acct.display();
-    acct.withdrawl("Micah", 1000.00);
-    acct.display();
-
-    acct.save();
-
+    match opt.cmd {
+        Command::List => {
+            let acct = Account::load(&opt.file)?;
+            acct.display();
+            acct.save(&opt.file)?;
+        }
+        Command::Deposit(arg) => {
+            let mut acct = Account::load(&opt.file)?;
+            acct.deposit(&arg.user, arg.value);
+            acct.display();
+            acct.save(&opt.file)?;
+        }
+        Command::Withdrawl(arg) => {
+            let mut acct = Account::load(&opt.file)?;
+            acct.withdrawl(&arg.user, arg.value);
+            acct.display();
+            acct.save(&opt.file)?;
+        }
+        Command::Investments(arg) => {
+            let mut acct = Account::load(&opt.file)?;
+            acct.investments(arg.value);
+            acct.display();
+            acct.save(&opt.file)?;
+        }
+        _ => todo!("unimplemented"),
+    }
     Ok(())
 }
