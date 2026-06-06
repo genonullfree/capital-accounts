@@ -1,70 +1,47 @@
-
 #[derive(Debug)]
 struct Account {
-    total: f64,
-    investment: f64,
     users: Vec<User>,
 }
 
 impl Account {
     pub fn new_user(&mut self, name: &str, deposit: f64) {
-        let mut user = User::new(name, deposit);
-        user.deposit(self.total, deposit);
+        let mut user = User::new(name);
+        user.deposit(deposit);
         self.users.push(user);
-        self.update();
     }
 
-    pub fn update(&mut self) {
+    pub fn get_total(&self) -> f64 {
         let mut total = 0f64;
-        let mut withdrawl = 0f64;
         for each in &self.users {
-            total += each.deposit;
-            withdrawl += each.withdrawl;
+            total += each.value;
         }
-
-        for each in &mut self.users {
-            let p = (each.deposit - each.withdrawl) / total;
-            each.percent = p;
-        }
-
-        self.total = total + self.investment - withdrawl;
-
+        total
     }
 
-    pub fn totals(&self) {
-        println!("Account Total Balance: ${:.02}", self.total);
-        println!("Investment gains/losses: ${:.02}", self.investment);
-        println!("---");
-        let mut total_withdrawl = 0f64;
-        for each in &self.users {
-            total_withdrawl += each.withdrawl;
-        }
+    pub fn get_percentages(&self) -> Vec<f64> {
+        let total = self.get_total();
+        let mut p = Vec::new();
 
-        let mut check = 0f64;
         for each in &self.users {
-            let p = each.percent;
-            println!("Account: {}", each.name);
-            println!("Account Percent: {:.02?}%", p * 100f64);
-            println!("Account Balance: ${:.02}", (self.total * p) - each.withdrawl + (total_withdrawl * p));
-            check += (self.total * p) - each.withdrawl + (total_withdrawl * p);
-            println!();
+            p.push(each.value / total);
         }
-        println!("Check value: ${check:.02}");
-        println!("---");
+        p
     }
 
     pub fn investments(&mut self, value: f64) {
-        self.investment += value;
-        self.update();
+        let mut percentages = self.get_percentages();
+
+        for each in &mut self.users {
+            each.value += percentages.remove(0) * value;
+        }
     }
 
     pub fn deposit(&mut self, name: &str, value: f64) {
         for each in &mut self.users {
             if each.name == name {
-                each.deposit += value;
+                each.deposit(value);
                 println!("Modified Account: {name}");
-                println!("Total deposit: {:.02}", each.deposit);
-                self.update();
+                println!("This deposit: {:.02}", value);
                 return;
             }
         }
@@ -74,86 +51,88 @@ impl Account {
     pub fn withdrawl(&mut self, name: &str, value: f64) {
         for each in &mut self.users {
             if each.name == name {
-                if each.withdrawl + value > each.deposit {
+                if !each.withdrawl(value) {
                     println!("Withdrawl failed! Not enough funds in {name}'s account.");
                     return;
                 }
-                each.withdrawl += value;
                 println!("Modified Account: {name}");
-                println!("Total withdrawl: {:.02}", each.withdrawl);
-                self.update();
+                println!("This withdrawl: {:.02}", value);
                 return;
             }
         }
         println!("Error: No user \"{name}\"");
     }
-}
 
+    pub fn display(&self) {
+        let percentages = self.get_percentages();
+        let total = self.get_total();
+
+        println!("---");
+        println!("Account Totals:");
+        println!("  Total Value: {total}");
+        println!();
+        for (n, each) in self.users.iter().enumerate() {
+            println!("Name: {}", each.name);
+            println!("  Percent: {}", percentages.get(n).unwrap_or(&0f64));
+            println!("  Value: {}", each.value);
+        }
+        println!("---");
+    }
+}
 
 #[derive(Debug)]
 struct User {
     name: String,
-    deposit: f64,
-    withdrawl: f64,
-    percent: f64,
+    value: f64,
 }
 
 impl User {
-    pub fn new(name: &str, deposit: f64) -> Self {
-        Self{
+    pub fn new(name: &str) -> Self {
+        Self {
             name: name.to_string(),
-            deposit,
-            withdrawl: 0f64,
-            percent: 0f64,
+            value: 0f64,
         }
     }
 
-    pub fn deposit(&mut self, total: f64, deposit: f64) {
-        let value = self.value(total);
-        self.percent = (value + deposit) / (total + deposit);
+    pub fn deposit(&mut self, deposit: f64) {
+        self.value += deposit;
     }
 
-    pub fn withdrawl(&mut self, total: f64, withdrawl: f64) -> bool {
-        let value = self.value(total);
-        if value > withdrawl {
-            self.percent = (value - withdrawl) / (total - withdrawl);
+    pub fn withdrawl(&mut self, withdrawl: f64) -> bool {
+        if self.value > withdrawl {
+            self.value -= withdrawl;
             true
         } else {
             false
         }
     }
-
-    pub fn value(&self, total: f64) -> f64 {
-        total * self.percent
-    }
 }
 
 fn main() {
-    let mut acct = Account{ total: 5000f64, investment: 0f64, users: Vec::new()};
-    
+    let mut acct = Account { users: Vec::new() };
+
     acct.new_user("geno", 52000f64);
-    acct.totals();
+    acct.display();
     acct.new_user("Micah", 1300f64);
-    acct.totals();
+    acct.display();
     acct.new_user("Killian", 1000f64);
-    acct.totals();
+    acct.display();
     acct.new_user("Ashton", 500f64);
-    acct.totals();
+    acct.display();
     acct.new_user("Areli", 300f64);
-    acct.totals();
+    acct.display();
 
     /*
     let users = vec![user0, user1, user2, user3, user4];
     acct.users = users;
-    acct.update();
     */
 
     acct.investments(10000.00);
-    acct.totals();
+    acct.display();
     acct.investments(-3000.00);
-    acct.totals();
+    acct.display();
     acct.deposit("Areli", 1000.00);
-    acct.totals();
+    acct.display();
     acct.withdrawl("Micah", 1000.00);
-    acct.totals();
+    acct.display();
 }
