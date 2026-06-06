@@ -69,6 +69,26 @@ enum Method {
     Withdrawl,
 }
 
+struct Ledger {
+    filename: String,
+    file: File,
+}
+
+impl Ledger {
+    pub fn load(file: &str) -> Result<Self> {
+        let filename = format!("{file}.log");
+        let file = File::options().append(true).create(true).open(&filename)?;
+        Ok(Self { filename, file })
+    }
+
+    pub fn log(&mut self, msg: String) -> Result<()> {
+        let message = format!("{}: {msg}\n", Local::now());
+        self.file.write_all(message.as_bytes())?;
+        println!("Action logged to {}", self.filename);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Account {
     users: Vec<User>,
@@ -205,15 +225,6 @@ impl Account {
         println!("Loaded: {filename}");
         Ok(acct)
     }
-
-    pub fn log(file: &str, msg: String) -> Result<()> {
-        let filename = format!("{file}.log");
-        let message = format!("{}: {msg}\n", Local::now());
-        let mut file = File::options().append(true).create(true).open(&filename)?;
-        file.write_all(message.as_bytes())?;
-        println!("Action logged to {filename}");
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -246,23 +257,21 @@ impl User {
 
 fn main() -> Result<()> {
     let opt = Args::parse();
+    let mut ledger = Ledger::load(&opt.file)?;
 
     match opt.cmd {
         Command::List => {
             let acct = Account::load(&opt.file)?;
             acct.display();
             acct.save(&opt.file)?;
-            Account::log(&opt.file, "Accounts listed".to_string())?;
+            ledger.log("Accounts listed".to_string())?;
         }
         Command::Deposit(arg) => {
             let mut acct = Account::load(&opt.file)?;
             acct.deposit(&arg.user, arg.value);
             acct.display();
             acct.save(&opt.file)?;
-            Account::log(
-                &opt.file,
-                format!("{} deposited ${:.02}", &arg.user, arg.value),
-            )?;
+            ledger.log(format!("{} deposited ${:.02}", &arg.user, arg.value))?;
         }
         Command::Withdrawl(arg) => {
             let mut acct = Account::load(&opt.file)?;
@@ -270,15 +279,9 @@ fn main() -> Result<()> {
             acct.display();
             acct.save(&opt.file)?;
             if result {
-                Account::log(
-                    &opt.file,
-                    format!("{} withdrawn ${:.02}", &arg.user, arg.value),
-                )?;
+                ledger.log(format!("{} withdrawn ${:.02}", &arg.user, arg.value))?;
             } else {
-                Account::log(
-                    &opt.file,
-                    format!("{} not withdrawn ${:.02}", &arg.user, arg.value),
-                )?;
+                ledger.log(format!("{} not withdrawn ${:.02}", &arg.user, arg.value))?;
             }
         }
         Command::Investments(arg) => {
@@ -286,33 +289,24 @@ fn main() -> Result<()> {
             acct.investments(arg.value);
             acct.display();
             acct.save(&opt.file)?;
-            Account::log(
-                &opt.file,
-                format!("Investments gain/loss ${:.02}", arg.value),
-            )?;
+            ledger.log(format!("Investments gain/loss ${:.02}", arg.value))?;
         }
         Command::NewUser(arg) => {
             let mut acct = Account::load(&opt.file)?;
             acct.new_user(&arg.user, arg.value);
             acct.display();
             acct.save(&opt.file)?;
-            Account::log(
-                &opt.file,
-                format!("{} deposited ${:.02}", &arg.user, arg.value),
-            )?;
+            ledger.log(format!("{} deposited ${:.02}", &arg.user, arg.value))?;
         }
         Command::Create(arg) => {
             let mut acct = Account { users: Vec::new() };
             acct.new_user(&arg.user, arg.value);
             acct.display();
             acct.save(&opt.file)?;
-            Account::log(
-                &opt.file,
-                format!(
-                    "New account created, {} deposited ${:.02}",
-                    &arg.user, arg.value
-                ),
-            )?;
+            ledger.log(format!(
+                "New account created, {} deposited ${:.02}",
+                &arg.user, arg.value
+            ))?;
         }
         Command::RemoveUser(arg) => {
             let mut acct = Account::load(&opt.file)?;
@@ -335,16 +329,17 @@ fn main() -> Result<()> {
             acct.display();
             acct.save(&opt.file)?;
             match arg.method {
-                Method::Disperse => Account::log(
-                    &opt.file,
-                    format!("User {} removed, ${:.02} dispersed", &user.name, user.value),
-                )?,
-                Method::Withdrawl => Account::log(
-                    &opt.file,
-                    format!("User {} removed, ${:.02} withdrwan", &user.name, user.value),
-                )?,
+                Method::Disperse => ledger.log(format!(
+                    "User {} removed, ${:.02} dispersed",
+                    &user.name, user.value
+                ))?,
+                Method::Withdrawl => ledger.log(format!(
+                    "User {} removed, ${:.02} withdrwan",
+                    &user.name, user.value
+                ))?,
             }
         }
     }
+
     Ok(())
 }
