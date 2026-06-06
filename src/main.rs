@@ -1,10 +1,21 @@
-#[derive(Debug)]
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+
+const TEST_LOAD: &str = r#"{"users":[{"name":"geno","value":58606.17059891107},{"name":"Micah","value":465.1542649727769},{"name":"Killian","value":1127.0417422867513},{"name":"Ashton","value":563.5208711433756},{"name":"Areli","value":1338.1125226860254}]}"#;
+
+#[derive(Debug, Serialize, Deserialize)]
 struct Account {
     users: Vec<User>,
 }
 
 impl Account {
     pub fn new_user(&mut self, name: &str, deposit: f64) {
+        // Attempt to deposit first to make sure there isn't already that account
+        if self.deposit(name, deposit) {
+            // Success, this user already exists
+            return;
+        }
+        // Create new user
         let mut user = User::new(name);
         user.deposit(deposit);
         self.users.push(user);
@@ -36,31 +47,33 @@ impl Account {
         }
     }
 
-    pub fn deposit(&mut self, name: &str, value: f64) {
+    pub fn deposit(&mut self, name: &str, value: f64) -> bool {
         for each in &mut self.users {
             if each.name == name {
                 each.deposit(value);
                 println!("Modified Account: {name}");
                 println!("This deposit: ${:.02}", value);
-                return;
+                return true;
             }
         }
         println!("Error: No user \"{name}\"");
+        false
     }
 
-    pub fn withdrawl(&mut self, name: &str, value: f64) {
+    pub fn withdrawl(&mut self, name: &str, value: f64) -> bool {
         for each in &mut self.users {
             if each.name == name {
                 if !each.withdrawl(value) {
                     println!("Withdrawl failed! Not enough funds in {name}'s account.");
-                    return;
+                    return false;
                 }
                 println!("Modified Account: {name}");
                 println!("This withdrawl: ${:.02}", value);
-                return;
+                return true;
             }
         }
         println!("Error: No user \"{name}\"");
+        false
     }
 
     pub fn display(&self) {
@@ -81,9 +94,20 @@ impl Account {
         }
         println!("---");
     }
+
+    pub fn save(&self) -> Result<()> {
+        let output = serde_json::to_string(&self)?;
+        println!("Saved: {output}");
+        Ok(())
+    }
+
+    pub fn load() -> Result<Self> {
+        let acct: Account = serde_json::from_str(TEST_LOAD)?;
+        Ok(acct)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct User {
     name: String,
     value: f64,
@@ -111,8 +135,9 @@ impl User {
     }
 }
 
-fn main() {
-    let mut acct = Account { users: Vec::new() };
+fn main() -> Result<()> {
+    //let mut acct = Account { users: Vec::new() };
+    let mut acct = Account::load()?;
 
     acct.new_user("geno", 52000f64);
     acct.display();
@@ -138,4 +163,8 @@ fn main() {
     acct.display();
     acct.withdrawl("Micah", 1000.00);
     acct.display();
+
+    acct.save();
+
+    Ok(())
 }
