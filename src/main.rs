@@ -20,15 +20,19 @@ struct Args {
 enum Command {
     /// Deposit value to an account
     Deposit(ModifyOpt),
-    /// Withdrawl value from an account
-    Withdrawl(ModifyOpt),
+    /// Withdraw value from an account
+    Withdraw(ModifyOpt),
     /// List all accounts and their values
     List,
     /// Update investment value
     Investments(InvestOpt),
+    /// Add a new user to an established account
     NewUser(ModifyOpt),
+    /// Create an entirely new account
     Create(ModifyOpt),
+    /// Remove a user from an established account
     RemoveUser(RemoveOpt),
+    /// Automatically calculate the investment difference and apply it
     Update(InvestOpt),
 }
 
@@ -64,10 +68,10 @@ struct RemoveOpt {
 
 #[derive(Parser, Debug)]
 enum Method {
-    /// Disperse the funds in the account to the other accounts according to their percentages
-    Disperse,
-    /// Withdrawl the funds in the account being removed
-    Withdrawl,
+    /// Disburse the funds in the account to the other accounts according to their percentages
+    Disburse,
+    /// Withdraw the funds in the account being removed
+    Withdraw,
 }
 
 struct Ledger {
@@ -159,15 +163,15 @@ impl Account {
         false
     }
 
-    pub fn withdrawl(&mut self, name: &str, value: f64) -> bool {
+    pub fn withdrawal(&mut self, name: &str, value: f64) -> bool {
         for each in &mut self.users {
             if each.name == name {
-                if !each.withdrawl(value) {
-                    println!("Withdrawl failed! Not enough funds in {name}'s account.");
+                if !each.withdrawal(value) {
+                    println!("Withdrawal failed! Not enough funds in {name}'s account.");
                     return false;
                 }
                 println!("Modified Account: {name}");
-                println!("This withdrawl: ${:.02}", value);
+                println!("This withdrawal: ${:.02}", value);
                 return true;
             }
         }
@@ -246,9 +250,9 @@ impl User {
         self.value += deposit;
     }
 
-    pub fn withdrawl(&mut self, withdrawl: f64) -> bool {
-        if self.value > withdrawl {
-            self.value -= withdrawl;
+    pub fn withdrawal(&mut self, withdrawal: f64) -> bool {
+        if self.value > withdrawal {
+            self.value -= withdrawal;
             true
         } else {
             false
@@ -274,9 +278,9 @@ fn main() -> Result<()> {
             acct.save(&opt.file)?;
             ledger.log(format!("{} deposited ${:.02}", &arg.user, arg.value))?;
         }
-        Command::Withdrawl(arg) => {
+        Command::Withdraw(arg) => {
             let mut acct = Account::load(&opt.file)?;
-            let result = acct.withdrawl(&arg.user, arg.value);
+            let result = acct.withdrawal(&arg.user, arg.value);
             acct.display();
             acct.save(&opt.file)?;
             if result {
@@ -320,31 +324,36 @@ fn main() -> Result<()> {
         }
         Command::RemoveUser(arg) => {
             let mut acct = Account::load(&opt.file)?;
+            // before
+            acct.display();
             let rm_user = acct.rm_user(&arg.user);
             let Some(user) = rm_user else {
                 return Ok(());
             };
-            acct.display();
             match arg.method {
-                Method::Disperse => {
+                Method::Disburse => {
+                    println!("User {} removed and ${:.02} value disbursed",
+                        user.name, user.value
+                    );
                     acct.investments(user.value);
                 }
-                Method::Withdrawl => {
+                Method::Withdraw => {
                     println!(
                         "User {} removed and ${:.02} value withdrawn",
                         user.name, user.value
                     );
                 }
             };
+            // after
             acct.display();
             acct.save(&opt.file)?;
             match arg.method {
-                Method::Disperse => ledger.log(format!(
-                    "User {} removed, ${:.02} dispersed",
+                Method::Disburse => ledger.log(format!(
+                    "User {} removed, ${:.02} disbursed",
                     &user.name, user.value
                 ))?,
-                Method::Withdrawl => ledger.log(format!(
-                    "User {} removed, ${:.02} withdrwan",
+                Method::Withdraw => ledger.log(format!(
+                    "User {} removed, ${:.02} withdrawn",
                     &user.name, user.value
                 ))?,
             }
