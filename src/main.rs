@@ -29,6 +29,7 @@ enum Command {
     NewUser(ModifyOpt),
     Create(ModifyOpt),
     RemoveUser(RemoveOpt),
+    Update(InvestOpt),
 }
 
 #[derive(Parser, Debug)]
@@ -129,7 +130,7 @@ impl Account {
     pub fn investments(&mut self, value: f64) -> bool {
         let mut percentages = self.get_percentages();
         println!("Investments: ${:.02}", value);
-        let mut save_values = self.users.clone();
+        let save_values = self.users.clone();
         for each in &mut self.users {
             let p = percentages.remove(0);
             if (each.value + (p * value)) < 0f64 {
@@ -290,6 +291,15 @@ fn main() -> Result<()> {
             acct.display();
             acct.save(&opt.file)?;
             ledger.log(format!("Investments gain/loss ${:.02}", arg.value))?;
+        }
+        Command::Update(arg) => {
+            let mut acct = Account::load(&opt.file)?;
+            let total = acct.get_total();
+            let value = arg.value - total;
+            acct.investments(value);
+            acct.display();
+            acct.save(&opt.file)?;
+            ledger.log(format!("Investments gain/loss ${:.02}", value))?;
         }
         Command::NewUser(arg) => {
             let mut acct = Account::load(&opt.file)?;
